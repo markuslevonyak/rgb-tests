@@ -445,9 +445,6 @@ impl<const TRANSFER: bool> ResolveWitness for OfflineResolver<'_, TRANSFER> {
 // run once to generate tests/fixtures/consignemnt_<scenario>.json
 // for example:
 // SCENARIO=B cargo test --test validation validate_consignment_generate -- --ignored --show-output
-//
-// then copy the generated consignemnt file to tests/fixtures/attack_<n>.json
-// manually change tests/fixtures/attack_<n>.json files to simulate attacks
 #[test]
 #[ignore = "one-shot"]
 fn validate_consignment_generate() {
@@ -520,7 +517,14 @@ fn validate_consignment_chain_fail() {
     let resolver = Scenario::A.resolver();
 
     // genesis chainNet: change from bitcoinRegtest to liquidTestnet
-    let consignment = get_consignment_from_json("attack_chain");
+    let file = std::fs::File::open("tests/fixtures/consignment_A.json").unwrap();
+    let mut json_consignment: Value = serde_json::from_reader(file).unwrap();
+    *json_consignment
+        .get_mut("genesis")
+        .unwrap()
+        .get_mut("chainNet")
+        .unwrap() = Value::String(s!("liquidTestnet"));
+    let consignment = transfer_from_json_value(&json_consignment);
     let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
     let validation_config = ValidationConfig {
         chain_net: ChainNet::BitcoinRegtest,
@@ -545,7 +549,8 @@ fn validate_consignment_genesis_fail() {
     let resolver = scenario.resolver();
 
     // schema ID: change genesis[schemaId] with CFA schema ID
-    let consignment = get_consignment_from_json("attack_genesis_schema_id");
+    let mut consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
+    consignment.genesis.schema_id = CFA_SCHEMA_ID;
     let expected = consignment.genesis.schema_id;
     let actual = consignment.schema_id();
     let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
@@ -564,7 +569,15 @@ fn validate_consignment_genesis_fail() {
     );
 
     // genesis chainNet: change from bitcoinRegtest to bitcoinMainnet
-    let consignment = get_consignment_from_json("attack_genesis_testnet");
+    let cons_path = format!("tests/fixtures/consignment_{scenario}.json");
+    let file = std::fs::File::open(cons_path).unwrap();
+    let mut json_consignment: Value = serde_json::from_reader(file).unwrap();
+    *json_consignment
+        .get_mut("genesis")
+        .unwrap()
+        .get_mut("chainNet")
+        .unwrap() = Value::String(s!("bitcoinMainnet"));
+    let consignment = transfer_from_json_value(&json_consignment);
     let res = consignment
         .validate(&resolver, &validation_config)
         .unwrap_err();
@@ -599,7 +612,24 @@ fn validate_consignment_bundles_fail() {
     let resolver = Scenario::A.resolver();
 
     // bundles first in time pubWitness inputs[0] sequence: change from 0 to 1
-    let consignment = get_consignment_from_json("attack_bundles_pubWitness_data_input_sequence");
+    let file = std::fs::File::open("tests/fixtures/consignment_A.json").unwrap();
+    let mut json_consignment: Value = serde_json::from_reader(file).unwrap();
+    *json_consignment
+        .get_mut("bundles")
+        .unwrap()
+        .get_mut(0)
+        .unwrap()
+        .get_mut("pubWitness")
+        .unwrap()
+        .get_mut("tx")
+        .unwrap()
+        .get_mut("inputs")
+        .unwrap()
+        .get_mut(0)
+        .unwrap()
+        .get_mut("sequence")
+        .unwrap() = Value::Number(1.into());
+    let consignment = transfer_from_json_value(&json_consignment);
     let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
     let validation_config = ValidationConfig {
         chain_net: ChainNet::BitcoinRegtest,
@@ -620,7 +650,7 @@ fn validate_consignment_bundles_fail() {
 fn validate_resolver_errors() {
     let scenario = Scenario::A;
     let base_resolver = scenario.resolver();
-    let consignment = get_consignment_from_json("attack_resolver_error");
+    let mut consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
     let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
     let validation_config = ValidationConfig {
         chain_net: ChainNet::BitcoinRegtest,
@@ -629,6 +659,7 @@ fn validate_resolver_errors() {
     };
     let txid =
         Txid::from_str("b411d8dd37353d243a527739fdc39cca22dbfe4fe92517ce16a33563803c5ad2").unwrap();
+    consignment.bundles.iter_mut().nth(1).unwrap().pub_witness = PubWitness::Txid(txid);
 
     // resolve_pub_witness: ResolverIssue
     let mut resolver = base_resolver.clone();
@@ -733,7 +764,7 @@ fn validate_resolver_errors() {
 fn validate_consignment_unknown_tx() {
     let scenario = Scenario::A;
     let base_resolver = scenario.resolver();
-    let consignment = get_consignment_from_json("attack_resolver_error");
+    let mut consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
     let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
     let validation_config = ValidationConfig {
         chain_net: ChainNet::BitcoinRegtest,
@@ -742,6 +773,7 @@ fn validate_consignment_unknown_tx() {
     };
     let txid =
         Txid::from_str("b411d8dd37353d243a527739fdc39cca22dbfe4fe92517ce16a33563803c5ad2").unwrap();
+    consignment.bundles.iter_mut().nth(1).unwrap().pub_witness = PubWitness::Txid(txid);
     let wbundle = consignment
         .bundles
         .iter()
