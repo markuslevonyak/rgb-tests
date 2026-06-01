@@ -3355,3 +3355,33 @@ fn validate_consignment_mpc_path_len_panic() {
     };
     let _ = consignment.validate(&resolver, &validation_config);
 }
+
+#[cfg(not(feature = "altered"))]
+#[test]
+fn validate_consignment_mpc_proof_depth_overflow() {
+    let scenario = Scenario::B;
+    let base_consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
+    let mut consignment = base_consignment.clone();
+
+    let hash = "0000000000000000000000000000000000000000000000000000000000000000";
+    // serde deserialization does not fail
+    let malicious_proof: mpc::MerkleProof = serde_json::from_value(json!({
+        "pos": 0,
+        "cofactor": 0,
+        "path": (0..32).map(|_| hash).collect::<Vec<_>>()
+    }))
+    .unwrap();
+
+    let mut bundles = consignment.bundles.release();
+    bundles.last_mut().unwrap().anchor.mpc_proof = malicious_proof;
+    consignment.bundles = LargeVec::from_checked(bundles);
+
+    let cons_json = serde_json::to_string_pretty(&consignment).unwrap();
+    serde_json::from_str::<Transfer>(&cons_json).unwrap(); // again, this does not fail
+
+    let cons_bytes = consignment
+        .to_strict_serialized::<{ usize::MAX }>()
+        .unwrap();
+    let res = Transfer::from_strict_serialized::<{ usize::MAX }>(cons_bytes);
+    assert!(res.is_err());
+}
