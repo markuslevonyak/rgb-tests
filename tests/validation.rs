@@ -3312,3 +3312,46 @@ fn validate_consignment_unknown_rgbisa_opcode() {
         ))
     );
 }
+
+#[cfg(not(feature = "altered"))]
+#[test]
+fn validate_consignment_mpc_path_len_panic() {
+    let scenario = Scenario::B;
+    let resolver = scenario.resolver();
+
+    let base_consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
+    let trusted_typesystem = AssetSchema::from(base_consignment.schema_id()).types();
+
+    // Set the first bundle's MPC proof path to 32 zero-hashes: within Confined's bound, over u5's.
+    let mut consignment: serde_json::Value =
+        serde_json::from_str(&serde_json::to_string(&base_consignment).unwrap()).unwrap();
+    let overlong_path = serde_json::Value::Array(
+        (0..32)
+            .map(|_| serde_json::Value::String(format!("{:064x}", 0)))
+            .collect(),
+    );
+    *consignment
+        .get_mut("bundles")
+        .unwrap()
+        .get_mut(0)
+        .unwrap()
+        .get_mut("anchor")
+        .unwrap()
+        .get_mut("mpcProof")
+        .unwrap()
+        .get_mut("path")
+        .unwrap() = overlong_path;
+
+    // The rogue path decodes: a peer can encode and transmit it.
+    let consignment: Transfer =
+        serde_json::from_str(&serde_json::to_string(&consignment).unwrap()).unwrap();
+    assert_eq!(consignment.bundles[0].anchor.mpc_proof.as_path().len(), 32);
+
+    // validate() should not panic
+    let validation_config = ValidationConfig {
+        chain_net: ChainNet::BitcoinRegtest,
+        trusted_typesystem,
+        ..Default::default()
+    };
+    let _ = consignment.validate(&resolver, &validation_config);
+}
