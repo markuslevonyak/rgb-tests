@@ -840,7 +840,7 @@ pub fn broadcast_tx_and_mine(tx: &Tx, instance: u8) {
 
 pub fn attachment_from_fpath(fpath: &str) -> Attachment {
     let file_bytes = std::fs::read(fpath).unwrap();
-    let file_hash: sha256::Hash = Hash::hash(&file_bytes[..]);
+    let file_hash = sha256::Hash::hash(&file_bytes[..]);
     let digest = file_hash.to_byte_array().into();
     let mime = FileFormat::from_file(fpath)
         .unwrap()

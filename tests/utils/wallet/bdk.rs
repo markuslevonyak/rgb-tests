@@ -68,7 +68,7 @@ impl BdkTestWallet {
             panic!("cannot use bdk in tapret mode");
         }
         let mut seed = vec![0u8; 128];
-        rand::thread_rng().fill_bytes(&mut seed);
+        rand::rng().fill_bytes(&mut seed);
 
         let network = Network::Regtest;
 
@@ -84,7 +84,7 @@ impl BdkTestWallet {
 
         let wallet_dir = PathBuf::from(TEST_DATA_DIR)
             .join(INTEGRATION_DATA_DIR)
-            .join(xpriv.fingerprint(&Secp256k1::new()).to_string());
+            .join(xpriv.fingerprint(&BitcoinSecp256k1::new()).to_string());
         Self::new(network, wallet_dir, descriptor, change_descriptor)
     }
 

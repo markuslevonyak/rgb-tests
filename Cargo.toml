@@ -15,50 +15,46 @@ description = "RGB tests"
 
 [dependencies]
 amplify = "4.8.1"
-bdk_wallet = { version = "2.0.0", features = [
+bdk_wallet = { version = "3.1.0", features = [
     "file_store",
     "std",
 ] }
-bdk_electrum = "0.23.0"
-bdk_esplora = "0.22.0"
-bitcoin_hashes = "0.14.0"
+bdk_electrum = "0.24.0"
+bdk_esplora = "0.22.2"
+bitcoin_hashes = "1.0.0"
 bp-electrum = { version = "=0.11.1-alpha.2" }
-bp-esplora = { version = "=0.11.1-alpha.2", features = [
-    "blocking-https",
-] }
 bp-wallet = { version = "=0.11.1-alpha.2", features = [
     "electrum",
     "esplora",
     "fs",
     "signers"
 ] }
-chrono = "0.4.41"
-crossbeam = "0.8"
-dhat = "0.3"
-file-format = { version = "0.25.0", features = [
+chrono = "0.4.45"
+crossbeam = "0.8.4"
+dhat = { version = "0.3", optional = true }
+file-format = { version = "0.29.0", features = [
     "reader",
 ] }
 lazy_static = { version = "1.5.0", default-features = false }
 libc = "0.2"
-nix = { version = "0.30", features = [
+nix = { version = "0.31", features = [
     "process",
 ] }
-once_cell = "1.19.0"
-rand = "0.8.5"
-rstest = "0.19.0"
-rstest_reuse = "0.6.0"
+once_cell = "1.21.4"
+rand = "0.9.1"
+rstest = "0.26.1"
+rstest_reuse = "0.7.0"
 serde = { version = "1", features = [
     "derive",
 ] }
-serde_json = "1.0.140"
-serial_test = "3.2.0"
+serde_json = "1"
+serial_test = "3.5.0"
 signal-hook = "0.3"
-strum = { version = "0.26.2", features = [
+strum = { version = "0.28.0", features = [
     "derive",
 ] }
-strum_macros = "0.26.2"
-sysinfo = "0.37"
-time = "0.3.34"
+sysinfo = "0.38"
+time = "0.3.53"
 
 # RGB-related deps
 ## rgb-api
@@ -84,9 +80,7 @@ psrgbt_altered = { git = "https://github.com/rgb-protocol/rgb-api", branch = "re
     "bp",
 ], optional = true }
 ## rgb-consensus
-rgb-consensus = { path = "./rgb-consensus", features = [
-    "rand",
-] }
+rgb-consensus = { path = "./rgb-consensus" }
 ## rgb-ops
 rgb-ops = { path = "./rgb-ops", features = [
     "fs",
@@ -126,7 +120,7 @@ altered = [
     "rgb_altered",
     "psrgbt_altered",
 ]
-memprof = [] # enable memory profiling
+memprof = ["dep:dhat"] # enable memory profiling
 
 [profile.reldebug]
 inherits = "release"

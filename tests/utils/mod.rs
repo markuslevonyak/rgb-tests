@@ -84,7 +84,7 @@ pub use bdk_wallet::{
     },
     file_store::Store,
 };
-pub use bitcoin_hashes::{Hash, sha256};
+pub use bitcoin_hashes::sha256;
 pub use bpwallet::{
     Address as BpAddress, AnyIndexer, ConsensusDecode, DerivationPath, DerivationSeg, Derive,
     DerivedAddr, Descriptor, HardenedIndex, Idx, IdxBase, Indexer as BpIndexer, InternalPk,
@@ -238,8 +238,7 @@ pub use signal_hook::consts::{SIGINT, SIGTERM};
 pub use signal_hook::flag::register;
 pub use strict_encoding::{FieldName, StrictSerialize, TypeName, fname, tn};
 pub use strict_types::{SemId, StrictDeserialize, StrictDumb, StrictVal, TypeSystem};
-pub use strum::IntoEnumIterator;
-pub use strum_macros::EnumIter;
+pub use strum::{EnumIter, IntoEnumIterator};
 pub use time::OffsetDateTime;
 
 pub use crate::utils::{chain::*, wallet::*};
