@@ -215,7 +215,8 @@ pub use rgbstd::{
     OutputAssignment, OutputSeal, OwnedFraction, Precision, Schema, SecretSeal, TokenIndex,
     TxoSeal,
     containers::{
-        BuilderSeal, Consignment, ConsignmentExt, Fascia, FileContent, Kit, Transfer, ValidKit,
+        BuilderSeal, Consignment, ConsignmentConstraintError, ConsignmentExt, Fascia, FileContent,
+        Kit, Transfer, UncheckedTransfer, ValidKit,
     },
     contract::{
         ContractBuilder, ContractData, DataAllocation, FilterExclude, FungibleAllocation,

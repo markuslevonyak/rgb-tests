@@ -480,8 +480,19 @@ fn validate_consignment_generate() {
 fn get_consignment_from_json(fname: &str) -> Transfer {
     let cons_path = format!("tests/fixtures/{fname}.json");
     let file = std::fs::File::open(cons_path).unwrap();
-    let consignment: Transfer = serde_json::from_reader(file).unwrap();
-    consignment
+    let consignment: UncheckedTransfer = serde_json::from_reader(file).unwrap();
+    consignment.into_checked().unwrap()
+}
+
+fn transfer_from_json_str(s: &str) -> Transfer {
+    serde_json::from_str::<UncheckedTransfer>(s)
+        .unwrap()
+        .into_checked()
+        .unwrap()
+}
+
+fn transfer_from_json_value(v: &serde_json::Value) -> Transfer {
+    transfer_from_json_str(&serde_json::to_string(v).unwrap())
 }
 
 #[cfg(not(feature = "altered"))]
@@ -580,8 +591,10 @@ fn validate_consignment_genesis_fail() {
         .get_mut("sealClosingStrategy")
         .unwrap() = Value::String(s!("FirstOpretThenTapret"));
     assert!(
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .is_err()
+        serde_json::from_str::<UncheckedTransfer>(
+            &serde_json::to_string(&json_consignment).unwrap()
+        )
+        .is_err()
     );
 }
 
@@ -1284,8 +1297,7 @@ fn validate_consignment_commitments_fail() {
         .unwrap()
         .get_mut("cofactor")
         .unwrap() = Value::Number(42.into());
-    let consignment: Transfer =
-        serde_json::from_str(&serde_json::to_string(&consignment).unwrap()).unwrap();
+    let consignment = transfer_from_json_value(&consignment);
     let res = consignment
         .validate(&resolver, &validation_config)
         .unwrap_err();
@@ -2730,9 +2742,7 @@ fn validate_consignment_typesystem_fail() {
     let value_mut = get_entry_at_path_mut(&mut json_consignment, &path);
     *value_mut = Value::Number(u32::MAX.into());
 
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
     let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
     let validation_config = ValidationConfig {
         chain_net: ChainNet::BitcoinRegtest,
@@ -2755,9 +2765,7 @@ fn validate_consignment_tapret_partner() {
     let cons_path = format!("tests/fixtures/consignment_{scenario}.json");
     let file = std::fs::File::open(cons_path).unwrap();
     let base_consignment: Value = serde_json::from_reader(file).unwrap();
-    let base_transfer =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&base_consignment).unwrap())
-            .unwrap();
+    let base_transfer = transfer_from_json_value(&base_consignment);
     let trusted_typesystem = AssetSchema::from(base_transfer.schema_id()).types();
     let validation_config = ValidationConfig {
         chain_net: ChainNet::BitcoinRegtest,
@@ -2791,9 +2799,7 @@ fn validate_consignment_tapret_partner() {
     let mut json_consignment = base_consignment.clone();
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
     let resolver = OfflineResolver {
         consignment: &consignment,
     };
@@ -2820,9 +2826,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -2847,9 +2851,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -2867,7 +2869,7 @@ fn validate_consignment_tapret_partner() {
     let mut json_consignment = base_consignment.clone();
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
-    serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
+    serde_json::from_str::<UncheckedTransfer>(&serde_json::to_string(&json_consignment).unwrap())
         .unwrap_err();
 
     // SUCCESS (PartnerNode::RightBranch)
@@ -2887,9 +2889,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -2911,9 +2911,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -2938,9 +2936,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -2974,9 +2970,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -3009,9 +3003,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -3044,9 +3036,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -3076,9 +3066,7 @@ fn validate_consignment_tapret_partner() {
     let bundle_val = get_entry_at_path_mut(&mut json_consignment, &bundle_path);
     *get_entry_at_path_mut(bundle_val, &partner_node_path) = partner_node;
     *get_entry_at_path_mut(bundle_val, &spk_path) = spk;
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -3105,9 +3093,7 @@ fn validate_consignment_tapret_partner() {
             Step::Key(s!("internalPk")),
         ],
     ) = "0101010101010101010101010101010101010101010101010101010101010101".into();
-    let consignment =
-        serde_json::from_str::<Transfer>(&serde_json::to_string(&json_consignment).unwrap())
-            .unwrap();
+    let consignment = transfer_from_json_value(&json_consignment);
 
     let resolver = OfflineResolver {
         consignment: &consignment,
@@ -3315,16 +3301,13 @@ fn validate_consignment_unknown_rgbisa_opcode() {
 
 #[cfg(not(feature = "altered"))]
 #[test]
-fn validate_consignment_mpc_path_len_panic() {
+fn unchecked_consignment_into_checked_enforces_bounds() {
     let scenario = Scenario::B;
-    let resolver = scenario.resolver();
-
     let base_consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
-    let trusted_typesystem = AssetSchema::from(base_consignment.schema_id()).types();
+    let base_json = serde_json::to_string(&base_consignment).unwrap();
 
     // Set the first bundle's MPC proof path to 32 zero-hashes: within Confined's bound, over u5's.
-    let mut consignment: serde_json::Value =
-        serde_json::from_str(&serde_json::to_string(&base_consignment).unwrap()).unwrap();
+    let mut consignment: serde_json::Value = serde_json::from_str(&base_json).unwrap();
     let overlong_path = serde_json::Value::Array(
         (0..32)
             .map(|_| serde_json::Value::String(format!("{:064x}", 0)))
@@ -3341,19 +3324,18 @@ fn validate_consignment_mpc_path_len_panic() {
         .unwrap()
         .get_mut("path")
         .unwrap() = overlong_path;
+    let malicious_json = serde_json::to_string(&consignment).unwrap();
 
-    // The rogue path decodes: a peer can encode and transmit it.
-    let consignment: Transfer =
-        serde_json::from_str(&serde_json::to_string(&consignment).unwrap()).unwrap();
-    assert_eq!(consignment.bundles[0].anchor.mpc_proof.as_path().len(), 32);
+    // Transfer cannot be deserialized directly (no Deserialize impl); the
+    // only serde entry point is UncheckedTransfer
+    let unchecked = serde_json::from_str::<UncheckedTransfer>(&malicious_json).unwrap();
 
-    // validate() should not panic
-    let validation_config = ValidationConfig {
-        chain_net: ChainNet::BitcoinRegtest,
-        trusted_typesystem,
-        ..Default::default()
-    };
-    let _ = consignment.validate(&resolver, &validation_config);
+    // constraint violation is detected by into_checked, the only way to get a Consignment from an
+    // UncheckedTransfer
+    assert!(matches!(
+        unchecked.into_checked(),
+        Err(ConsignmentConstraintError::Deserialize(_))
+    ));
 }
 
 #[cfg(not(feature = "altered"))]
@@ -3377,7 +3359,7 @@ fn validate_consignment_mpc_proof_depth_overflow() {
     consignment.bundles = LargeVec::from_checked(bundles);
 
     let cons_json = serde_json::to_string_pretty(&consignment).unwrap();
-    serde_json::from_str::<Transfer>(&cons_json).unwrap(); // again, this does not fail
+    serde_json::from_str::<UncheckedTransfer>(&cons_json).unwrap(); // again, this does not fail
 
     let cons_bytes = consignment
         .to_strict_serialized::<{ usize::MAX }>()
