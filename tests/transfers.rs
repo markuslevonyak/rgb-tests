@@ -3621,3 +3621,241 @@ fn revert_genesis(#[case] with_transfers: bool) {
 
     wlt.check_allocations(contract_id, schema_id, vec![], false);
 }
+
+#[cfg(not(feature = "altered"))]
+#[serial]
+#[test]
+fn reorg_partial_bundle_ancestry() {
+    // Build this RGB history (each arrow is one transition; B1 is a single
+    // bundle containing two transitions with independent ancestries):
+    //
+    //   wlt_2 issues 700
+    //     ├─ T_pre: 300 ──────────────► wlt_3            (pre-fork, both chains)
+    //     ├─ T0:  400 ► wlt_1 (blinded utxo_1_1)         (instance 2 ONLY)
+    //     └─ T1 (wlt_3): 300 ► wlt_1 (blinded utxo_1_2)  (both chains)
+    //   B1 (single tx, single bundle, both chains):
+    //     tr_archived: T0's 400 ► wlt_1 self (utxo_1_3)  (sorts LAST by opid)
+    //     tr_valid:    T1's 300 ► wlt_1 self (utxo_1_4)  (sorts FIRST, childless)
+    //   B2 (both chains): tr_archived's 400 ► wlt_2, spent by wlt_1 minus 1 rgb change
+    //
+    // Every bitcoin outpoint used as a seal or tx input exists on both reorg
+    // instances, and all witnesses except T0's are mined on both chains: after
+    // switching to INSTANCE_3 only T0's witness becomes Archived. Blinded
+    // seals make this possible, since a transfer's witness tx does not spend
+    // the previous witness tx's outputs. After the reorg, tr_archived and its
+    // descendant B2 must become invalid, while tr_valid, whose ancestry is
+    // untouched, must remain valid and spendable.
+
+    // amount received via T0 and moved by tr_archived: its history gets
+    // reverted by the reorg. Kept larger than amt_valid so that RGB coin
+    // selection, which picks the largest allocation first, spends this branch
+    // when building B2
+    let amt_archived = 400;
+    // amount received via T1 and moved by tr_valid: its history is untouched
+    // by the reorg
+    let amt_valid = 300;
+
+    initialize();
+    connect_reorg_nodes();
+
+    let mut wlt_1 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+    let mut wlt_2 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+    let mut wlt_3 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+
+    let asset_schema = AssetSchema::Nia;
+    let contract_id = wlt_2.issue_with_info(
+        AssetInfo::default_nia(vec![amt_archived + amt_valid]),
+        vec![None],
+        None,
+        None,
+    );
+    let schema_id = wlt_2.schema_id(contract_id);
+
+    // create all the bitcoin UTXOs used as seals while the reorg nodes are
+    // still connected, so they exist on both chains
+    let utxo_1_1 = wlt_1.get_utxo(None);
+    let utxo_1_2 = wlt_1.get_utxo(None);
+    let utxo_1_3 = wlt_1.get_utxo(None);
+    let utxo_1_4 = wlt_1.get_utxo(None);
+    let utxo_2_1 = wlt_2.get_utxo(None);
+    let utxo_3_1 = wlt_3.get_utxo(None);
+    // T_pre: move amt_valid to wlt_3 pre-fork, so that T1 below spends only
+    // pre-fork bitcoin inputs and can be mined on both chains
+    wlt_2.send(
+        &mut wlt_3,
+        InvoiceType::Blinded(None),
+        contract_id,
+        amt_valid,
+        1000,
+        None,
+    );
+    mine_custom(false, INSTANCE_2, 6);
+    disconnect_reorg_nodes();
+
+    // T0: mined on instance 2 only, will become Archived after the reorg
+    let invoice = wlt_1.invoice(
+        contract_id,
+        schema_id,
+        amt_archived,
+        InvoiceType::Blinded(Some(utxo_1_1)),
+    );
+    let (_, tx_t0) = wlt_2.send_to_invoice(&mut wlt_1, invoice, Some(1000), None, None);
+
+    // T1: mined on both instances, stays valid after the reorg
+    let invoice = wlt_1.invoice(
+        contract_id,
+        schema_id,
+        amt_valid,
+        InvoiceType::Blinded(Some(utxo_1_2)),
+    );
+    let (_, tx_t1) = wlt_3.send_to_invoice(&mut wlt_1, invoice, Some(1000), None, None);
+    broadcast_tx_and_mine(&tx_t1, INSTANCE_3);
+
+    wlt_1.check_allocations(
+        contract_id,
+        asset_schema,
+        vec![amt_valid, amt_archived],
+        false,
+    );
+
+    // B1: single tx spending utxo_1_1 + utxo_1_2, whose bundle contains two
+    // transitions, one per received allocation (a shape the standard pay flow
+    // never produces for a single contract, but batched transfers do)
+    let contract_data = wlt_1.stock().contract_data(contract_id).unwrap();
+    let assignment_type = *contract_data
+        .schema
+        .assignment_types_for_state(asset_schema.default_state_type())
+        .first()
+        .unwrap();
+    let transition_type = contract_data
+        .schema
+        .default_transition_for_assignment(assignment_type);
+    let find_opout = |wlt: &BpTestWallet, utxo: Outpoint, amt: u64| {
+        wlt.contract_assignments_for(contract_id, vec![utxo])
+            .into_values()
+            .flat_map(|s| s.into_iter())
+            .find(|(_, s)| matches!(s, AllocatedState::Amount(a) if a.as_u64() == amt))
+            .unwrap()
+            .0
+    };
+    let opout_archived = find_opout(&wlt_1, utxo_1_1, amt_archived);
+    let opout_valid = find_opout(&wlt_1, utxo_1_2, amt_valid);
+
+    let (mut psbt, _psbt_meta) = wlt_1.construct_psbt(vec![utxo_1_1, utxo_1_2], vec![], None);
+    psbt.construct_output_expect(ScriptPubkey::op_return(&[]), Sats::ZERO)
+        .set_opret_host();
+    psbt.set_rgb_close_method(CloseMethod::OpretFirst);
+
+    // tr_valid: moves amt_valid to wlt_1's own utxo_1_4; it will have no
+    // descendants and must be visited first when iterating the bundle's
+    // transitions in opid order
+    let state_valid = asset_schema.allocated_state(amt_valid);
+    let mut builder = wlt_1
+        .wallet
+        .stock()
+        .transition_builder_raw(contract_id, transition_type)
+        .unwrap();
+    builder = builder.add_input(opout_valid, state_valid.clone()).unwrap();
+    let seal_valid = BuilderSeal::Revealed(GraphSeal::new_random(utxo_1_4.txid, utxo_1_4.vout));
+    builder = builder
+        .add_owned_state_raw(*assignment_type, seal_valid, state_valid)
+        .unwrap();
+    let tr_valid = builder.complete_transition().unwrap();
+    let opid_valid = tr_valid.id();
+
+    // tr_archived: moves amt_archived to wlt_1's own utxo_1_3; its future
+    // descendant must be reachable only through the bundle's last opid
+    let state_archived = asset_schema.allocated_state(amt_archived);
+    let mut builder = wlt_1
+        .wallet
+        .stock()
+        .transition_builder_raw(contract_id, transition_type)
+        .unwrap();
+    builder = builder
+        .add_input(opout_archived, state_archived.clone())
+        .unwrap();
+    let seal_archived = BuilderSeal::Revealed(GraphSeal::new_random(utxo_1_3.txid, utxo_1_3.vout));
+    builder = builder
+        .add_owned_state_raw(*assignment_type, seal_archived, state_archived)
+        .unwrap();
+    let mut tr_archived = builder.complete_transition().unwrap();
+    while tr_archived.id() < opid_valid {
+        tr_archived.nonce -= 1;
+    }
+
+    psbt.push_rgb_transition(tr_valid).unwrap();
+    psbt.push_rgb_transition(tr_archived).unwrap();
+
+    psbt.set_as_unmodifiable();
+    let fascia = psbt.rgb_commit().unwrap();
+    let tx = wlt_1.sign_finalize_extract(&mut psbt);
+    let txid = tx.txid();
+    wlt_1.broadcast_tx(&tx);
+    wlt_1.mine_tx(&txid_bp_to_bitcoin(txid), false);
+    broadcast_tx_and_mine(&tx, INSTANCE_3);
+
+    // self-transfer: consuming the fascia is enough for wlt_1 to see both
+    // moved allocations, no consignment needed
+    wlt_1.consume_fascia(fascia, txid);
+    wlt_1.sync_and_update_witnesses(None);
+
+    wlt_1.check_allocations(
+        contract_id,
+        asset_schema,
+        vec![amt_valid, amt_archived],
+        false,
+    );
+
+    // B2: descendant of tr_archived only (coin selection picks the largest
+    // allocation, amt_archived on utxo_1_3); mined on both instances
+    let invoice = wlt_2.invoice(
+        contract_id,
+        schema_id,
+        amt_archived - 1,
+        InvoiceType::Blinded(Some(utxo_2_1)),
+    );
+    let (consignment, tx_b2, _, _) = wlt_1.pay_full(invoice, None, None, true, None);
+    wlt_1.mine_tx(&txid_bp_to_bitcoin(tx_b2.txid()), false);
+    broadcast_tx_and_mine(&tx_b2, INSTANCE_3);
+    wlt_2.accept_transfer(consignment, None);
+    wlt_1.sync();
+
+    wlt_1.check_allocations(contract_id, asset_schema, vec![1, amt_valid], false);
+    wlt_2.check_allocations(contract_id, asset_schema, vec![amt_archived - 1], false);
+
+    // reorg: only T0's witness disappears, B1's and B2's witnesses stay mined
+    wlt_1.switch_to_instance(INSTANCE_3);
+    wlt_2.switch_to_instance(INSTANCE_3);
+    wlt_3.switch_to_instance(INSTANCE_3);
+    assert_eq!(
+        wlt_1.get_witness_ord(&txid_bp_to_bitcoin(tx_t0.txid())),
+        WitnessOrd::Archived
+    );
+    assert!(matches!(
+        wlt_1.get_witness_ord(&txid_bp_to_bitcoin(tx_b2.txid())),
+        WitnessOrd::Mined(_)
+    ));
+    wlt_1.sync_and_update_witnesses(None);
+    wlt_2.sync_and_update_witnesses(None);
+    wlt_3.sync_and_update_witnesses(None);
+
+    // tr_archived descends from the archived T0, so it and its descendant B2
+    // must be invalid: wlt_1 must not show B2's rgb change of 1. tr_valid's
+    // ancestry is untouched by the reorg, so its amt_valid must survive.
+    wlt_1.check_allocations(contract_id, asset_schema, vec![amt_valid], false);
+    // wlt_2 gets back the allocation T0 consumed, while the amount received
+    // via the now-invalid B2 must be gone
+    wlt_2.check_allocations(contract_id, asset_schema, vec![amt_archived], false);
+
+    // prove that tr_valid is still spendable end-to-end: spend it and have
+    // the receiver validate and accept (blinded on a pre-fork utxo, as the
+    // instance 3 miner may lack the mature funds needed to create a new one)
+    let invoice = wlt_3.invoice(
+        contract_id,
+        schema_id,
+        amt_valid,
+        InvoiceType::Blinded(Some(utxo_3_1)),
+    );
+    wlt_1.send_to_invoice(&mut wlt_3, invoice, Some(1000), None, None);
+    wlt_3.check_allocations(contract_id, asset_schema, vec![amt_valid], false);
+}
