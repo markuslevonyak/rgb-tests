@@ -1665,7 +1665,7 @@ fn random_transfers() {
         }
         println!(
             "completed transfer with txid {} in {} ms",
-            &tx.txid(),
+            tx.txid(),
             loop_duration.as_millis()
         );
 
