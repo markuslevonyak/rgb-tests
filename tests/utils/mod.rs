@@ -53,6 +53,10 @@ pub use std::{
     time::{Duration, Instant},
 };
 
+pub use aluvm::{
+    isa::Instr,
+    library::{Lib, LibSite},
+};
 pub use amplify::{
     ByteArray, Bytes64, From, Wrapper, bmap, bset,
     confinement::{
@@ -62,7 +66,7 @@ pub use amplify::{
     hex::FromHex,
     map, none,
     num::u24,
-    s, set,
+    s, set, tiny_bmap, zero,
 };
 pub use bdk_electrum::{
     BdkElectrumClient,
@@ -88,8 +92,8 @@ pub use bitcoin_hashes::sha256;
 pub use bpwallet::{
     Address as BpAddress, AnyIndexer, ConsensusDecode, DerivationPath, DerivationSeg, Derive,
     DerivedAddr, Descriptor, HardenedIndex, Idx, IdxBase, Indexer as BpIndexer, InternalPk,
-    Keychain, LockTime, Network as BpNetwork, NormalIndex, Outpoint as BpOutpoint, Sats,
-    ScriptPubkey, SeqNo, Terminal as BpTerminal, Tx, TxStatus, TxVer, Txid as BpTxid,
+    Keychain, LockTime as BpLockTime, Network as BpNetwork, NormalIndex, Outpoint as BpOutpoint,
+    Sats, ScriptPubkey, SeqNo, Terminal as BpTerminal, Tx, TxStatus, TxVer, Txid as BpTxid,
     Vout as BpVout, Wallet as BpWallet, WalletUtxo, Wpkh, XkeyOrigin, XprivAccount, Xpub,
     XpubAccount, XpubDerivable, XpubFp,
     fs::FsTextStore,
@@ -133,17 +137,19 @@ pub use psrgbt_altered::{
 pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
 #[cfg(not(feature = "altered"))]
 pub use rgb::{
-    Assign, AssignFungible, AssignmentDetails, AssignmentType, BundleId, DescriptorRgb,
-    FungibleState, GenesisSeal, GlobalDetails, GlobalStateSchema, GraphSeal, Identity,
-    KnownTransition, MetaDetails, MetaType, MetaValue, Occurrences, OccurrencesMismatch,
-    OpFullType, OpId, Opout, Outpoint, OwnedStateSchema, RevealedData, RevealedValue, RgbDescr,
-    RgbWallet, StateType, TapretKey, TransferParams, Transition, TransitionBundle, TransitionType,
-    TypedAssigns, Vin, VoidState, WalletProvider, WpkhDescr,
+    Anchor, Assign, AssignFungible, AssignmentDetails, AssignmentType, BundleId, DescriptorRgb,
+    FungibleState, FungibleType, GenesisSchema, GenesisSeal, GlobalDetails, GlobalStateSchema,
+    GraphSeal, Identity, KnownTransition, MetaDetails, MetaType, MetaValue, Occurrences,
+    OccurrencesMismatch, OpFullType, OpId, Opout, Outpoint, OwnedStateSchema, RevealedData,
+    RevealedValue, RgbDescr, RgbWallet, StateType, TapretKey, TransferParams, Transition,
+    TransitionBundle, TransitionDetails, TransitionSchema, TransitionType, TypedAssigns, Vin,
+    VoidState, WalletProvider, WpkhDescr,
     assignments::AssignVec,
+    bitcoin::{self, Sequence, TxIn, TxOut, Witness, absolute::LockTime},
     bitcoin::{
         Address, CompressedPublicKey, Network, Psbt, ScriptBuf, TapLeafHash, TapNodeHash,
         Transaction, constants::ChainHash, hashes::sha256d, key::Secp256k1 as BitcoinSecp256k1,
-        taproot::LeafScript, taproot::LeafVersion,
+        taproot::LeafScript, taproot::LeafVersion, transaction::Version,
     },
     containers::{PubWitness, ValidContract, WitnessBundle},
     contract::{
@@ -154,6 +160,7 @@ pub use rgb::{
     opret::OpretProof,
     pay::{PsbtMeta, TxParams},
     persistence::{ContractAssignments, MemContract, MemContractState, Stock},
+    rgbasm,
     stl::{ContractTerms, RejectListUrl, StandardTypes, rgb_contract_stl},
     tapret::{TapretNodePartner, TapretRightBranch},
     validation::{
@@ -161,7 +168,7 @@ pub use rgb::{
         ValidationError, Validator, Validity, Warning, WitnessOrdProvider, WitnessResolverError,
         WitnessStatus,
     },
-    vm::{ContractStateAccess, GlobalsIter, WitnessOrd, WitnessPos},
+    vm::{ContractStateAccess, GlobalsIter, RgbIsa, WitnessOrd, WitnessPos},
 };
 #[cfg(feature = "altered")]
 pub use rgb_altered::{
@@ -236,7 +243,7 @@ pub use serde_json::{Value, json};
 pub use serial_test::serial;
 pub use signal_hook::consts::{SIGINT, SIGTERM};
 pub use signal_hook::flag::register;
-pub use strict_encoding::{FieldName, StrictSerialize, TypeName, fname, tn};
+pub use strict_encoding::{FieldName, StrictSerialize, TypeName, fname, strict_dumb, tn};
 pub use strict_types::{SemId, StrictDeserialize, StrictDumb, StrictVal, TypeSystem};
 pub use strum::{EnumIter, IntoEnumIterator};
 pub use time::OffsetDateTime;

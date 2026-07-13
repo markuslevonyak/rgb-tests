@@ -3385,3 +3385,158 @@ fn validate_consignment_mpc_proof_depth_overflow() {
     let res = Transfer::from_strict_serialized::<{ usize::MAX }>(cons_bytes);
     assert!(res.is_err());
 }
+
+#[cfg(not(feature = "altered"))]
+#[test]
+fn evolve_state_on_operations_without_validator() {
+    let global_type = GlobalStateType::with(42);
+    let code = rgbasm! {
+        put     a32[0],0;
+        ldc     global_type,a32[0],s16[0];
+        test;
+        ret;
+    };
+    let lib = Lib::assemble::<Instr<RgbIsa<MemContract>>>(&code)
+        .expect("wrong BFA transfer validation script");
+
+    let types = StandardTypes::with(rgb_contract_stl());
+    let schema = Schema {
+        ffv: zero!(),
+        name: tn!("BridgedFungibleAsset"),
+        meta_types: none!(),
+        global_types: tiny_bmap! {
+             global_type => GlobalDetails {
+                global_state_schema: GlobalStateSchema::once(types.get("RGBContract.Amount")),
+                name: fname!("someGlobal"),
+            },
+        },
+        owned_types: tiny_bmap! {
+            OS_ASSET => AssignmentDetails {
+                owned_state_schema: OwnedStateSchema::Fungible(FungibleType::Unsigned64Bit),
+                name: fname!("assetOwner"),
+                default_transition: TS_TRANSFER,
+            },
+        },
+        // NOTE: Genesis updates global state and has no validator
+        genesis: GenesisSchema {
+            metadata: none!(),
+            globals: tiny_bmap! {
+                global_type => Occurrences::NoneOrOnce,
+            },
+
+            assignments: tiny_bmap! {
+                OS_ASSET => Occurrences::OnceOrMore,
+            },
+            validator: None,
+        },
+        transitions: tiny_bmap! {
+            TS_TRANSFER => TransitionDetails {
+                transition_schema: TransitionSchema {
+                    metadata: none!(),
+                    globals: none!(),
+                    inputs: tiny_bmap! {
+                        OS_ASSET => Occurrences::NoneOrMore,
+                    },
+                    assignments: none!(),
+                    validator: Some(LibSite::with(0, lib.id())),
+                },
+                name: fname!("transfer"),
+            },
+        },
+        default_assignment: Some(OS_ASSET),
+    };
+    let type_system = types.type_system(schema.clone());
+    let scripts = Confined::from_checked(bmap! {lib.id() => lib});
+    let chain_net = ChainNet::BitcoinRegtest;
+    let outpoint =
+        Outpoint::from_str("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc:0")
+            .unwrap();
+    let seal = BuilderSeal::Revealed(GenesisSeal::rand_from(outpoint));
+    let contract_consignment = ContractBuilder::with(
+        strict_dumb!(),
+        schema,
+        type_system.clone(),
+        scripts,
+        chain_net,
+    )
+    .add_global_state("someGlobal", Amount::from(12u64))
+    .unwrap()
+    .add_fungible_state("assetOwner", seal, 14u64)
+    .unwrap()
+    .issue_contract_raw(42)
+    .unwrap()
+    .into_consignment();
+    let contract_id = contract_consignment.contract_id();
+    let opout = Opout::new(contract_consignment.genesis().id(), OS_ASSET, 0);
+    let transition = Transition {
+        contract_id,
+        transition_type: TS_TRANSFER,
+        inputs: NonEmptyOrdSet::with(opout).into(),
+        ..strict_dumb!()
+    };
+    let opid = transition.id();
+    let bundle = TransitionBundle {
+        input_map: NonEmptyOrdMap::with_key_value(opout, opid),
+        known_transitions: NonEmptyVec::with(KnownTransition::new(opid, transition)),
+    };
+    let mut psbt = Psbt::from_unsigned_tx(Transaction {
+        version: Version::ONE,
+        lock_time: LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: outpoint,
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence(0),
+            witness: Witness::new(),
+        }],
+        output: vec![TxOut {
+            value: bitcoin::Amount::ZERO,
+            script_pubkey: ScriptBuf::new_op_return([]),
+        }],
+    })
+    .unwrap();
+    psbt.inputs.get_mut(0).unwrap().witness_utxo = Some(TxOut {
+        value: bitcoin::Amount::from_sat(1000),
+        script_pubkey: ScriptBuf::new_p2a(),
+    });
+    let protocol_id = mpc::ProtocolId::from(contract_id);
+    psbt.outputs.get_mut(0).unwrap().set_opret_host();
+    psbt.outputs
+        .get_mut(0)
+        .unwrap()
+        .set_mpc_message(protocol_id, mpc::Message::from(bundle.bundle_id()))
+        .unwrap();
+    let (commitment, proof) = psbt.outputs.get_mut(0).unwrap().mpc_commit().unwrap();
+    psbt.outputs
+        .get_mut(0)
+        .unwrap()
+        .opret_commit(commitment)
+        .unwrap();
+    psbt.set_opret_commitment(0);
+    let tx = psbt.extract_tx().unwrap();
+    let anchor = Anchor::new(
+        proof.to_merkle_proof(protocol_id).unwrap(),
+        DbcProof::Opret(OpretProof::strict_dumb()),
+    );
+    let wbundle = WitnessBundle::with(PubWitness::Tx(tx), anchor, bundle);
+    let consignment = Consignment::<true> {
+        transfer: true,
+        bundles: Confined::from_checked(vec![wbundle]),
+        genesis: contract_consignment.genesis,
+        schema: contract_consignment.schema,
+        types: contract_consignment.types,
+        scripts: contract_consignment.scripts,
+        ..strict_dumb!()
+    };
+    let validation_config = ValidationConfig {
+        chain_net,
+        trusted_typesystem: type_system,
+        ..Default::default()
+    };
+    let resolver = OfflineResolver {
+        consignment: &consignment,
+    };
+    consignment
+        .clone()
+        .validate(&resolver, &validation_config)
+        .unwrap();
+}

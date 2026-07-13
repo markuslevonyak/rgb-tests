@@ -79,6 +79,8 @@ rgb_altered = { git = "https://github.com/rgb-protocol/rgb-api", branch = "rever
 psrgbt_altered = { git = "https://github.com/rgb-protocol/rgb-api", branch = "revert_fix_same_blinded_transfer", package = "rgb-psbt-utils", features = [
     "bp",
 ], optional = true }
+## aluvm
+rgb-aluvm = { path = "./rgb-aluvm" }
 ## rgb-consensus
 rgb-consensus = { path = "./rgb-consensus" }
 ## rgb-ops

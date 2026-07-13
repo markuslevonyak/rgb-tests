@@ -834,7 +834,7 @@ fn ln_transfers(#[case] update_witnesses_before_htlc: bool) {
     // this will make sure that in select_valid_witness the first TXID will be the one with
     // WitnessOrd::Ignored, when we want the one with WitnessOrd::Mined to be selected instead
     while txid_same_bundle_1 > txid_same_bundle_2 {
-        psbt.fallback_locktime = LockTime::from_height(offset);
+        psbt.fallback_locktime = BpLockTime::from_height(offset);
         txid_same_bundle_2 = psbt.txid();
         offset += 1;
     }
