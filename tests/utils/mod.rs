@@ -224,7 +224,7 @@ pub use rgbstd::{
     },
     indexers::AnyResolver,
     invoice::{Beneficiary, RgbInvoice, RgbInvoiceBuilder, XChainNet},
-    persistence::{ContractStateRead, StashReadProvider, fs::FsBinStore},
+    persistence::{ContractStateRead, StashReadProvider, StockError, fs::FsBinStore},
     schema::SchemaId,
     stl::{
         AssetSpec, Attachment, Details, EmbeddedMedia, MediaType, Name, ProofOfReserves,

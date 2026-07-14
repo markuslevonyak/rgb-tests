@@ -3933,3 +3933,88 @@ fn reorg_reaccept_transfer() {
     wlt_1.sync_and_update_witnesses(None);
     wlt_1.check_allocations(contract_id, asset_schema, vec![amt], false);
 }
+
+#[cfg(not(feature = "altered"))]
+#[serial]
+#[test]
+fn reorg_between_validation_and_accept() {
+    initialize();
+    connect_reorg_nodes();
+
+    let mut wlt_1 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+    let mut wlt_2 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+
+    let amt = 400;
+    let asset_schema = AssetSchema::Nia;
+    let contract_id =
+        wlt_2.issue_with_info(AssetInfo::default_nia(vec![amt]), vec![None], None, None);
+    let schema_id = wlt_2.schema_id(contract_id);
+
+    // create the seal utxos while the reorg nodes are still connected, so
+    // they exist on both chains
+    let utxo_1_1 = wlt_1.get_utxo(None);
+    let utxo_1_2 = wlt_1.get_utxo(None);
+    mine_custom(false, INSTANCE_2, 6);
+    disconnect_reorg_nodes();
+
+    // T0: mined on instance 2 only
+    let invoice = wlt_1.invoice(
+        contract_id,
+        schema_id,
+        amt,
+        InvoiceType::Blinded(Some(utxo_1_1)),
+    );
+    let (consignment_t0, tx_t0) =
+        wlt_2.send_to_invoice(&mut wlt_1, invoice, Some(1000), None, None);
+
+    // T1: self-transfer descending from T0, mined on both instances (its
+    // bitcoin input utxo_1_1 exists on both chains)
+    let invoice = wlt_1.invoice(
+        contract_id,
+        schema_id,
+        amt,
+        InvoiceType::Blinded(Some(utxo_1_2)),
+    );
+    let (consignment_t1, tx_t1, _, _) = wlt_1.pay_full(invoice, None, None, true, None);
+    wlt_1.mine_tx(&txid_bp_to_bitcoin(tx_t1.txid()), false);
+    broadcast_tx_and_mine(&tx_t1, INSTANCE_3);
+    wlt_1.accept_transfer(consignment_t1, None);
+    wlt_1.sync();
+    wlt_1.check_allocations(contract_id, asset_schema, vec![amt], false);
+
+    // the sender re-sends the T0 consignment and the receiver validates it
+    // while T0 is still mined
+    let trusted_typesystem = AssetSchema::from(consignment_t0.schema_id()).types();
+    let validation_config = ValidationConfig {
+        chain_net: wlt_1.chain_net(),
+        trusted_typesystem,
+        ..Default::default()
+    };
+    let validated_t0 = consignment_t0
+        .validate(&wlt_1.get_resolver(), &validation_config)
+        .unwrap();
+
+    // reorg happening between validation and accept, before the wallet has a
+    // chance to update its witnesses: T0's witness disappears
+    wlt_1.change_instance(INSTANCE_3);
+    assert_eq!(
+        wlt_1.get_witness_ord(&txid_bp_to_bitcoin(tx_t0.txid())),
+        WitnessOrd::Archived
+    );
+
+    // the accept re-resolves T0's witness, finds it Archived and fails; as a
+    // side effect it stores the archived ord and invalidates T0's operation
+    // together with its descendant T1's operation
+    let resolver = wlt_1.get_resolver();
+    let res = wlt_1
+        .wallet
+        .stock_mut()
+        .accept_transfer(validated_t0, resolver);
+    assert!(matches!(res, Err(StockError::AbsentValidWitness)));
+    wlt_1.check_allocations(contract_id, asset_schema, vec![], false);
+
+    // the failed accept stored the archived ord, so updating witnesses
+    // detects no ord change: the state must be coherent already
+    wlt_1.sync_and_update_witnesses(None);
+    wlt_1.check_allocations(contract_id, asset_schema, vec![], false);
+}
