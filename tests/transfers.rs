@@ -3859,3 +3859,77 @@ fn reorg_partial_bundle_ancestry() {
     wlt_1.send_to_invoice(&mut wlt_3, invoice, Some(1000), None, None);
     wlt_3.check_allocations(contract_id, asset_schema, vec![amt_valid], false);
 }
+
+#[cfg(not(feature = "altered"))]
+#[serial]
+#[test]
+fn reorg_reaccept_transfer() {
+    initialize();
+    connect_reorg_nodes();
+
+    let mut wlt_1 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+    let mut wlt_2 = BpTestWallet::with(&DescriptorType::Wpkh, Some(INSTANCE_2), true);
+
+    let amt = 400;
+    let asset_schema = AssetSchema::Nia;
+    let contract_id =
+        wlt_2.issue_with_info(AssetInfo::default_nia(vec![amt]), vec![None], None, None);
+    let schema_id = wlt_2.schema_id(contract_id);
+
+    // create the seal utxos while the reorg nodes are still connected, so
+    // they exist on both chains
+    let utxo_1_1 = wlt_1.get_utxo(None);
+    let utxo_1_2 = wlt_1.get_utxo(None);
+    mine_custom(false, INSTANCE_2, 6);
+    disconnect_reorg_nodes();
+
+    // T0: mined on instance 2 only
+    let invoice = wlt_1.invoice(
+        contract_id,
+        schema_id,
+        amt,
+        InvoiceType::Blinded(Some(utxo_1_1)),
+    );
+    let (consignment_t0, tx_t0) =
+        wlt_2.send_to_invoice(&mut wlt_1, invoice, Some(1000), None, None);
+
+    // T1: self-transfer descending from T0, mined on both instances (its
+    // bitcoin input utxo_1_1 exists on both chains)
+    let invoice = wlt_1.invoice(
+        contract_id,
+        schema_id,
+        amt,
+        InvoiceType::Blinded(Some(utxo_1_2)),
+    );
+    let (consignment_t1, tx_t1, _, _) = wlt_1.pay_full(invoice, None, None, true, None);
+    wlt_1.mine_tx(&txid_bp_to_bitcoin(tx_t1.txid()), false);
+    broadcast_tx_and_mine(&tx_t1, INSTANCE_3);
+    wlt_1.accept_transfer(consignment_t1, None);
+    wlt_1.sync();
+    wlt_1.check_allocations(contract_id, asset_schema, vec![amt], false);
+
+    // reorg: only T0's witness disappears; both T0's operation and its
+    // descendant T1's operation become invalid
+    wlt_1.switch_to_instance(INSTANCE_3);
+    assert_eq!(
+        wlt_1.get_witness_ord(&txid_bp_to_bitcoin(tx_t0.txid())),
+        WitnessOrd::Archived
+    );
+    assert!(matches!(
+        wlt_1.get_witness_ord(&txid_bp_to_bitcoin(tx_t1.txid())),
+        WitnessOrd::Mined(_)
+    ));
+    wlt_1.sync_and_update_witnesses(None);
+    wlt_1.check_allocations(contract_id, asset_schema, vec![], false);
+
+    // T0 gets mined on instance 3 as well and the sender re-sends the same
+    // consignment, which contains T0's operation but not T1's: accepting it
+    // must revalidate T0's operation and also its descendants, since their
+    // ancestry is fully valid again
+    broadcast_tx_and_mine(&tx_t0, INSTANCE_3);
+    wlt_1.accept_transfer(consignment_t0, None);
+    // updating witnesses cannot revalidate here: accepting the consignment
+    // has already refreshed the witness ord, so no ord change is detected
+    wlt_1.sync_and_update_witnesses(None);
+    wlt_1.check_allocations(contract_id, asset_schema, vec![amt], false);
+}
