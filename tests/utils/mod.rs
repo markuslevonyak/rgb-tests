@@ -112,7 +112,6 @@ pub use lazy_static::lazy_static;
 #[cfg(not(target_os = "windows"))]
 pub use nix::unistd::{self, Pid};
 pub use once_cell::sync::Lazy;
-#[cfg(not(feature = "altered"))]
 pub use psrgbt::{
     OpoutAndOpids, RgbOutExt, RgbPropKeyExt, RgbPsbtExt, Terminal,
     bp_conversion_utils::{
@@ -123,19 +122,7 @@ pub use psrgbt::{
         txid_bp_to_bitcoin, untweakedpublickey_to_internal_pk,
     },
 };
-#[cfg(feature = "altered")]
-pub use psrgbt_altered::{
-    OpoutAndOpids, RgbOutExt, RgbPropKeyExt, RgbPsbtExt, Terminal,
-    bp_conversion_utils::{
-        address_bitcoin_to_bp, address_bp_to_bitcoin, address_payload_bitcoin_from_script_pubkey,
-        address_payload_bp_from_script_pubkey, internal_pk_to_untweakedpublickey,
-        network_bp_to_bitcoin, outpoint_bitcoin_to_bp, outpoint_bp_to_bitcoin,
-        script_buf_to_script_pubkey, tx_bitcoin_to_bp, tx_bp_to_bitcoin, txid_bitcoin_to_bp,
-        txid_bp_to_bitcoin, untweakedpublickey_to_internal_pk,
-    },
-};
 pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
-#[cfg(not(feature = "altered"))]
 pub use rgb::{
     Anchor, Assign, AssignFungible, AssignmentDetails, AssignmentType, BundleId, DescriptorRgb,
     FungibleState, FungibleType, GenesisSchema, GenesisSeal, GlobalDetails, GlobalStateSchema,
@@ -169,38 +156,6 @@ pub use rgb::{
         WitnessStatus,
     },
     vm::{ContractStateAccess, GlobalsIter, RgbIsa, WitnessOrd, WitnessPos},
-};
-#[cfg(feature = "altered")]
-pub use rgb_altered::{
-    Assign, AssignmentDetails, AssignmentType, BundleId, DescriptorRgb, FungibleState, GenesisSeal,
-    GlobalDetails, GlobalStateSchema, GraphSeal, Identity, KnownTransition, MetaDetails, MetaType,
-    MetaValue, Occurrences, OccurrencesMismatch, OpFullType, OpId, Opout, Outpoint,
-    OwnedStateSchema, RevealedData, RevealedValue, RgbDescr, RgbWallet, StateType, TapretKey,
-    TransferParams, Transition, TransitionBundle, TransitionType, TypedAssigns, Vin, VoidState,
-    WalletProvider, WpkhDescr,
-    assignments::AssignVec,
-    bitcoin::{
-        Address, CompressedPublicKey, Network, Psbt, ScriptBuf, TapLeafHash, TapNodeHash,
-        Transaction, constants::ChainHash, hashes::sha256d, key::Secp256k1 as BitcoinSecp256k1,
-        taproot::LeafScript, taproot::LeafVersion,
-    },
-    containers::{PubWitness, ValidContract, WitnessBundle},
-    contract::{
-        AllocatedState, AssignmentsFilter, ContractOp, FilterIncludeAll, OpDirection, SchemaWrapper,
-    },
-    info::ContractInfo,
-    invoice::{AddressPayload, Pay2Vout},
-    opret::OpretProof,
-    pay::{PsbtMeta, TxParams},
-    persistence::{ContractAssignments, MemContract, MemContractState, Stock},
-    stl::{ContractTerms, RejectListUrl, StandardTypes, rgb_contract_stl},
-    tapret::{TapretNodePartner, TapretRightBranch},
-    validation::{
-        DbcProof, Failure, OpoutsDagData, ResolveWitness, Scripts, Status, ValidationConfig,
-        ValidationError, Validator, Validity, Warning, WitnessOrdProvider, WitnessResolverError,
-        WitnessStatus,
-    },
-    vm::{ContractStateAccess, GlobalsIter, WitnessOrd, WitnessPos},
 };
 pub use rgbcore::{
     Txid, Vout,

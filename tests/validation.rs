@@ -448,7 +448,6 @@ impl<const TRANSFER: bool> ResolveWitness for OfflineResolver<'_, TRANSFER> {
 //
 // then copy the generated consignemnt file to tests/fixtures/attack_<n>.json
 // manually change tests/fixtures/attack_<n>.json files to simulate attacks
-#[cfg(not(feature = "altered"))]
 #[test]
 #[ignore = "one-shot"]
 fn validate_consignment_generate() {
@@ -495,7 +494,6 @@ fn transfer_from_json_value(v: &serde_json::Value) -> Transfer {
     transfer_from_json_str(&serde_json::to_string(v).unwrap())
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_success() {
     for scenario in Scenario::iter() {
@@ -517,7 +515,6 @@ fn validate_consignment_success() {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_chain_fail() {
     let resolver = Scenario::A.resolver();
@@ -542,7 +539,6 @@ fn validate_consignment_chain_fail() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_genesis_fail() {
     let scenario = Scenario::B;
@@ -598,7 +594,6 @@ fn validate_consignment_genesis_fail() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_bundles_fail() {
     let resolver = Scenario::A.resolver();
@@ -621,7 +616,6 @@ fn validate_consignment_bundles_fail() {
     ));
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_resolver_errors() {
     let scenario = Scenario::A;
@@ -735,7 +729,6 @@ fn validate_resolver_errors() {
     assert_eq!(res, ValidationError::ResolverError(resolver_error));
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_unknown_tx() {
     let scenario = Scenario::A;
@@ -770,7 +763,6 @@ fn validate_consignment_unknown_tx() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_schema_fail() {
     let scenario = Scenario::B;
@@ -947,7 +939,6 @@ fn validate_consignment_schema_fail() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_commitments_fail() {
     let scenario = Scenario::B;
@@ -1508,7 +1499,6 @@ fn validate_consignment_commitments_fail() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_logic_fail() {
     let scenario = Scenario::B;
@@ -2142,7 +2132,6 @@ fn validate_consignment_logic_fail() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_remove_scripts_code() {
     let scenario = Scenario::B;
@@ -2209,7 +2198,6 @@ fn validate_consignment_remove_scripts_code() {
     ));
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_unmatching_transition_id() {
     let scenario = Scenario::B;
@@ -2279,7 +2267,6 @@ fn validate_consignment_unmatching_transition_id() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_ifa() {
     let scenario = Scenario::C;
@@ -2721,7 +2708,6 @@ fn get_entry_at_path_mut<'a>(root: &'a mut Value, path: &Path) -> &'a mut Value 
     curr
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_typesystem_fail() {
     let scenario = Scenario::B;
@@ -2758,7 +2744,6 @@ fn validate_consignment_typesystem_fail() {
     ));
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_tapret_partner() {
     let scenario = Scenario::D;
@@ -3223,7 +3208,6 @@ fn gen_tapret_values(case: Case) -> (Value, Value) {
     )
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_strict_roundtrip() {
     for scenario in Scenario::iter() {
@@ -3238,7 +3222,6 @@ fn validate_consignment_strict_roundtrip() {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_unknown_rgbisa_opcode() {
     let scenario = Scenario::B;
@@ -3299,7 +3282,6 @@ fn validate_consignment_unknown_rgbisa_opcode() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn unchecked_consignment_into_checked_enforces_bounds() {
     let scenario = Scenario::B;
@@ -3338,7 +3320,6 @@ fn unchecked_consignment_into_checked_enforces_bounds() {
     ));
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn validate_consignment_mpc_proof_depth_overflow() {
     let scenario = Scenario::B;
@@ -3368,7 +3349,6 @@ fn validate_consignment_mpc_proof_depth_overflow() {
     assert!(res.is_err());
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn evolve_state_on_operations_without_validator() {
     let global_type = GlobalStateType::with(42);

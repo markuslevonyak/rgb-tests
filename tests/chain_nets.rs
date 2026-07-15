@@ -53,7 +53,6 @@ fn get_chain_net_config(scenario: &ChainNetScenario) -> (String, ChainNet) {
 #[case(ChainNetScenario::SignetCustom)]
 fn chain_net_scenario(#[case] scenario: ChainNetScenario) {}
 
-#[cfg(not(feature = "altered"))]
 #[apply(chain_net_scenario)]
 fn check_chain_net(scenario: ChainNetScenario) {
     println!("scenario {scenario:?}");
@@ -76,7 +75,6 @@ fn check_chain_net(scenario: ChainNetScenario) {
         .expect("chain net match");
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(*ELECTRUM_SIGNET_CUSTOM_URL, WitnessResolverError::WrongChainNet)]
 #[case(ELECTRUM_SIGNET_URL, WitnessResolverError::ResolverIssue(None, "verbose transactions are unsupported by the provided electrum service".to_string()))]

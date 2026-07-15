@@ -9,7 +9,6 @@ type DT = DescriptorType;
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 // blinded
 #[case(TT::Blinded, DT::Wpkh, DT::Wpkh)]

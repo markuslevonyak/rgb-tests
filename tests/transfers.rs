@@ -2,7 +2,6 @@ pub mod utils;
 
 use utils::*;
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 // blinded: nia - nia
 #[case(TT::Blinded, DT::Wpkh, DT::Wpkh, AS::Nia, AS::Nia)]
@@ -392,7 +391,6 @@ fn transfer_loop_impl<W1, D1, W2, D2>(
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(AS::Nia)]
 #[case(AS::Cfa)]
@@ -439,7 +437,6 @@ fn unknown_kit(#[case] asset_schema: AssetSchema) {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn rbf_transfer() {
     initialize();
@@ -487,75 +484,6 @@ fn rbf_transfer() {
     );
 }
 
-#[cfg(feature = "altered")]
-#[rstest]
-#[should_panic(expected = "InvalidConsignment")]
-#[case(TransferType::Blinded)]
-#[should_panic(expected = "Composition(InsufficientState)")]
-#[case(TransferType::Witness)]
-fn same_transfer_twice_no_update_witnesses(#[case] transfer_type: TransferType) {
-    println!("transfer_type {transfer_type:?}");
-
-    initialize();
-
-    let mut wlt_1 = BpTestWallet::with_descriptor(&DescriptorType::Wpkh);
-    let mut wlt_2 = BpTestWallet::with_descriptor(&DescriptorType::Wpkh);
-
-    let issue_supply = 2000;
-    let contract_id = wlt_1.issue_nia(issue_supply, None);
-    let schema_id = wlt_1.schema_id(contract_id);
-
-    let amount = 100;
-    let invoice = wlt_2.invoice(contract_id, schema_id, amount, transfer_type);
-    let _ = wlt_1.pay_full(invoice.clone(), None, Some(500), false, None);
-
-    let (consignment, _, _, _) = wlt_1.pay_full(invoice, None, Some(1000), true, None);
-
-    wlt_2.accept_transfer(consignment, None);
-
-    // with TransferType::Blinded this shows duplicated allocations
-    wlt_2.debug_logs(contract_id, AllocationFilter::WalletAll);
-
-    let allocations = match transfer_type {
-        TransferType::Blinded => vec![amount, amount],
-        TransferType::Witness => vec![amount],
-    };
-    wlt_2.check_allocations(contract_id, schema_id, allocations, false);
-
-    // with TransferType::Blinded the receiver will detect a double spend, to avoid this the
-    // sendert should call update_witnesses when retrying the same transfer twice
-    wlt_2.send(
-        &mut wlt_1,
-        TransferType::Blinded,
-        contract_id,
-        amount * 2,
-        1000,
-        None,
-    );
-
-    if transfer_type == TransferType::Blinded {
-        unreachable!("should have panicked at previous send");
-    }
-
-    // with TransferType::Blinded this shows 1900+200 as owned, but we issued 2000
-    wlt_1.debug_logs(contract_id, AllocationFilter::WalletAll);
-
-    let mut wlt_3 = BpTestWallet::with_descriptor(&DescriptorType::Wpkh);
-
-    // with TransferType::Blinded this works but should fail
-    wlt_1.send(
-        &mut wlt_3,
-        TransferType::Blinded,
-        contract_id,
-        issue_supply + amount,
-        1000,
-        None,
-    );
-    // with TransferType::Blinded this shows 2100 as owned, but we issued 2000
-    wlt_3.debug_logs(contract_id, AllocationFilter::WalletAll);
-}
-
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(TransferType::Blinded)]
 #[case(TransferType::Witness)]
@@ -597,7 +525,6 @@ fn same_transfer_twice_update_witnesses(#[case] transfer_type: TransferType) {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(TT::Blinded)]
 #[case(TT::Witness)]
@@ -625,7 +552,6 @@ fn invoice_reuse(#[case] transfer_type: TransferType) {
     assert_eq!(consignment.bundles.len(), 1);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn accept_0conf() {
     initialize();
@@ -670,7 +596,6 @@ fn accept_0conf() {
     wlt_1.check_allocations(contract_id, schema_id, vec![wlt_1_change_amt], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(false)]
 #[case(true)]
@@ -1017,7 +942,6 @@ fn ln_transfers(#[case] update_witnesses_before_htlc: bool) {
     wlt_1.debug_logs(contract_id, AllocationFilter::WalletAll);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[should_panic(expected = "InvoiceBeneficiaryWrongChainNet(BitcoinMainnet, BitcoinRegtest)")]
 #[case(false)]
@@ -1047,7 +971,6 @@ fn mainnet_wlt_receiving_test_asset(#[case] custom_invoice: bool) {
     wlt_1.send_to_invoice(&mut wlt_2, invoice, Some(1000), None, None);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn sync_mainnet_wlt() {
     initialize();
@@ -1058,7 +981,6 @@ fn sync_mainnet_wlt() {
     wlt_1.sync();
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn collaborative_transfer() {
     initialize();
@@ -1165,7 +1087,6 @@ fn collaborative_transfer() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn receive_from_unbroadcasted_transfer_to_blinded() {
     initialize();
@@ -1243,7 +1164,6 @@ fn receive_from_unbroadcasted_transfer_to_blinded() {
     ));
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn check_fungible_history() {
     initialize();
@@ -1280,7 +1200,6 @@ fn check_fungible_history() {
     wlt_2.check_history_operation(&contract_id, Some(&txid), OpDirection::Received, amt);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn send_to_oneself() {
     initialize();
@@ -1310,7 +1229,6 @@ fn send_to_oneself() {
     wlt.check_allocations(contract_id, schema_id, vec![amt, issue_supply - amt], true);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn tapret_opret_same_utxo() {
     initialize();
@@ -1362,7 +1280,6 @@ fn tapret_opret_same_utxo() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn multiple_transitions_per_vin() {
     initialize();
@@ -1429,7 +1346,6 @@ fn multiple_transitions_per_vin() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn tapret_commitments_on_beneficiary_output() {
     initialize();
@@ -1537,7 +1453,6 @@ fn tapret_commitments_on_beneficiary_output() {
     assert_eq!(sats_post, sats_pre + sats);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn pfa() {
     initialize();
@@ -1592,7 +1507,6 @@ fn pfa() {
     wlt_2.check_allocations(contract_id_2, schema_id_2, vec![amt_2], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn ifa_inflation() {
     initialize();
@@ -1711,7 +1625,6 @@ fn ifa_inflation() {
     assert_eq!(inflatable, 0);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn ifa_zero_issuance_with_inflation() {
     initialize();
@@ -1749,7 +1662,6 @@ fn ifa_zero_issuance_with_inflation() {
     wlt_1.check_allocations(contract_id, AssetSchema::Ifa, vec![], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn ifa_move_inflation_right() {
     initialize();
@@ -1852,7 +1764,6 @@ fn ifa_move_inflation_right() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn ifa_burn() {
     initialize();
@@ -1937,7 +1848,6 @@ fn ifa_burn() {
     wlt_2.check_allocations(contract_id, AssetSchema::Ifa, vec![], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[should_panic(expected = "InputMapTransitionMismatch")]
 #[test]
 fn extra_known_transition() {
@@ -2039,7 +1949,6 @@ fn extra_known_transition() {
     wlt_2.accept_transfer(new_consignment, None);
 }
 
-#[cfg(not(feature = "altered"))]
 #[should_panic(expected = "InputMapTransitionMismatch")]
 #[test]
 fn uncommitted_input_opout() {
@@ -2132,7 +2041,6 @@ fn uncommitted_input_opout() {
     wlt_2.accept_transfer(consignment, None);
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn concealed_known_transition() {
     initialize();
@@ -2287,7 +2195,6 @@ fn concealed_known_transition() {
     wlt_2.accept_transfer(consignment, None);
 }
 
-#[cfg(not(feature = "altered"))]
 #[should_panic(expected = "MissingScript")]
 #[test]
 fn remove_scripts_code() {
@@ -2376,7 +2283,6 @@ fn remove_scripts_code() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn accept_bundle_missing_transitions() {
     initialize();
@@ -2551,7 +2457,6 @@ fn accept_bundle_missing_transitions() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn unordered_transitions_within_bundle() {
     initialize();
@@ -2645,7 +2550,6 @@ fn unordered_transitions_within_bundle() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[should_panic(expected = "InputMapTransitionMismatch")]
 #[test]
 fn transition_spending_uncommitted_opout() {
@@ -2784,7 +2688,6 @@ fn transition_spending_uncommitted_opout() {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 fn multiasset_transfer() {
     initialize();
@@ -2873,7 +2776,6 @@ fn multiasset_transfer() {
     );
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 fn extra_after_merge() {
     initialize();
@@ -2981,7 +2883,6 @@ fn extra_after_merge() {
     wlt_2.accept_transfer(consignment, None);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 fn contract_linking() {
     initialize();
@@ -3061,7 +2962,6 @@ fn contract_linking() {
         .unwrap();
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(HistoryType::Linear, ReorgType::ChangeOrder)]
 #[case(HistoryType::Linear, ReorgType::Revert)]
@@ -3369,7 +3269,6 @@ fn reorg_history(#[case] history_type: HistoryType, #[case] reorg_type: ReorgTyp
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(HistoryType::Linear)]
 #[case(HistoryType::Branching)]
@@ -3572,7 +3471,6 @@ fn reorg_revert_multiple(#[case] history_type: HistoryType) {
     wlt_2.check_allocations(contract_id, schema_id, wlt_2_allocs, false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(false)]
 #[case(true)]
@@ -3622,7 +3520,6 @@ fn revert_genesis(#[case] with_transfers: bool) {
     wlt.check_allocations(contract_id, schema_id, vec![], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[serial]
 #[test]
 fn reorg_partial_bundle_ancestry() {
@@ -3860,7 +3757,6 @@ fn reorg_partial_bundle_ancestry() {
     wlt_3.check_allocations(contract_id, asset_schema, vec![amt_valid], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[serial]
 #[test]
 fn reorg_reaccept_transfer() {
@@ -3934,7 +3830,6 @@ fn reorg_reaccept_transfer() {
     wlt_1.check_allocations(contract_id, asset_schema, vec![amt], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[serial]
 #[test]
 fn reorg_between_validation_and_accept() {

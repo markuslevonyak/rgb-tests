@@ -68,17 +68,6 @@ rgb-api = { path = "./rgb-api", features = [
 rgb-psbt-utils = { path = "./rgb-api/psbt", features = [
     "bp",
 ] }
-## altered_submodules/rgb (cannot use path, see https://github.com/rust-lang/cargo/issues/8639)
-rgb_altered = { git = "https://github.com/rgb-protocol/rgb-api", branch = "revert_fix_same_blinded_transfer", package = "rgb-api", features = [
-    "bp",
-    "bdk",
-    "electrum_blocking",
-    "esplora_blocking",
-    "fs",
-], optional = true }
-psrgbt_altered = { git = "https://github.com/rgb-protocol/rgb-api", branch = "revert_fix_same_blinded_transfer", package = "rgb-psbt-utils", features = [
-    "bp",
-], optional = true }
 ## aluvm
 rgb-aluvm = { path = "./rgb-aluvm" }
 ## rgb-consensus
@@ -118,10 +107,6 @@ rgb-strict-types = { path = "./rgb-strict-types" }
 
 [features]
 default = []
-altered = [
-    "rgb_altered",
-    "psrgbt_altered",
-]
 memprof = ["dep:dhat"] # enable memory profiling
 
 [profile.reldebug]

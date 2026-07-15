@@ -5,7 +5,6 @@ pub mod utils;
 
 use utils::*;
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(TT::Witness, TT::Witness, DT::Wpkh)]
 #[case(TT::Witness, TT::Blinded, DT::Wpkh)]
@@ -88,7 +87,6 @@ fn flexible_change_and_extra(
     wlt_1.check_allocations(contract_id_2, schema_id_2, vec![100], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(DescriptorType::Tr, DescriptorType::Tr)]
 #[case(DescriptorType::Wpkh, DescriptorType::Tr)]
@@ -199,7 +197,6 @@ fn flexible_wlt_descriptor_compatibility(
     wlt_2.check_allocations(contract_id, schema_id, vec![300, 300], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 fn flexible_multiple_transitions_per_vin() {
     initialize();
@@ -301,7 +298,6 @@ fn flexible_multiple_transitions_per_vin() {
     wlt_1.check_allocations(contract_id_2, AssetSchema::Nia, vec![100], false);
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(DescriptorType::Wpkh)]
 #[case(DescriptorType::Tr)]

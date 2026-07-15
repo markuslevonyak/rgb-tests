@@ -22,6 +22,3 @@
 [submodule "rgb-schemas"]
 	path = rgb-schemas
 	url = https://github.com/rgb-protocol/rgb-schemas
-[submodule "altered_submodules/rgb-api"]
-	path = altered_submodules/rgb-api
-	url = https://github.com/rgb-protocol/rgb-api

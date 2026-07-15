@@ -48,7 +48,7 @@ _init() {
     if ! [ -r .gitmodules ]; then
         _die "project has no git submodules"
     fi
-    SUBS=$(git submodule | awk '{print $2}' | grep -v altered_submodules)
+    SUBS=$(git submodule | awk '{print $2}')
 }
 
 _cleanup() {

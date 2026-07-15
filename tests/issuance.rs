@@ -9,7 +9,6 @@ use utils::*;
 #[case(DescriptorType::Tr)]
 fn descriptor(#[case] wallet_desc: DescriptorType) {}
 
-#[cfg(not(feature = "altered"))]
 #[apply(descriptor)]
 fn issue_nia(wallet_desc: DescriptorType) {
     println!("wallet_desc {wallet_desc:?}");
@@ -57,7 +56,6 @@ fn issue_nia(wallet_desc: DescriptorType) {
     assert_eq!(allocation.state, Amount::from(issued_supply));
 }
 
-#[cfg(not(feature = "altered"))]
 #[apply(descriptor)]
 fn issue_uda(wallet_desc: DescriptorType) {
     println!("wallet_desc {wallet_desc:?}");
@@ -141,7 +139,6 @@ fn issue_uda(wallet_desc: DescriptorType) {
     assert_eq!(allocation.state.to_string(), "000000000100000000000000");
 }
 
-#[cfg(not(feature = "altered"))]
 #[apply(descriptor)]
 fn issue_cfa(wallet_desc: DescriptorType) {
     println!("wallet_desc {wallet_desc:?}");
@@ -189,7 +186,6 @@ fn issue_cfa(wallet_desc: DescriptorType) {
     assert_eq!(allocation.state, Amount::from(issued_supply));
 }
 
-#[cfg(not(feature = "altered"))]
 #[apply(descriptor)]
 fn issue_ifa(wallet_desc: DescriptorType) {
     println!("wallet_desc {wallet_desc:?}");
@@ -263,7 +259,6 @@ fn issue_ifa(wallet_desc: DescriptorType) {
     assert_eq!(allocation.state, Amount::from(issued_supply));
 }
 
-#[cfg(not(feature = "altered"))]
 #[apply(descriptor)]
 fn issue_nia_multiple_utxos(wallet_desc: DescriptorType) {
     println!("wallet_desc {wallet_desc:?}");
@@ -298,7 +293,6 @@ fn issue_nia_multiple_utxos(wallet_desc: DescriptorType) {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[apply(descriptor)]
 fn issue_cfa_multiple_utxos(wallet_desc: DescriptorType) {
     println!("wallet_desc {wallet_desc:?}");
@@ -333,7 +327,6 @@ fn issue_cfa_multiple_utxos(wallet_desc: DescriptorType) {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[should_panic(expected = "InvoiceBeneficiaryWrongChainNet(BitcoinRegtest, LiquidTestnet)")]
 #[case("standard_invoice")]
@@ -430,7 +423,6 @@ fn issue_on_different_layers(#[case] scenario: &str) {
     }
 }
 
-#[cfg(not(feature = "altered"))]
 #[rstest]
 #[case(AS::Nia)]
 #[case(AS::Cfa)]
@@ -484,7 +476,6 @@ fn deterministic_contract_id(#[case] asset_schema: AssetSchema) {
     assert_eq!(contract_id.to_string(), expected_cid.to_string());
 }
 
-#[cfg(not(feature = "altered"))]
 #[test]
 fn contract_globals_order() {
     initialize();

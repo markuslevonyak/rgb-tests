@@ -52,7 +52,6 @@ help() {
     echo "options:"
     echo "    -h   --help             show this help message"
     echo "    -i   --ignore-run-fail  run all tests regardless of failure"
-    echo "    -na  --no-altered       don't run altered integration tests"
     echo "    -nel --no-electrum      don't run electrum integration tests"
     echo "    -nes --no-esplora       don't run esplora integration tests"
     echo "    -ni  --no-integration   don't run integration tests"
@@ -71,9 +70,6 @@ while [ -n "$1" ]; do
             ;;
         -i | --ignore-run-fail)
             COV_OPTS+=("--ignore-run-fail")
-            ;;
-        -na | --no-altered)
-            SKIP_ALTERED_TESTS=1
             ;;
         -nes | --no-esplora)
             SKIP_ESPLORA_TESTS=1
@@ -163,15 +159,6 @@ if [ "$SKIP_INTEGRATION_TESTS" != 1 ]; then
             | tee $COV_RUN_FILE.$RUN
         ((RUN += 1))
     fi
-    # altered
-    if [ "$SKIP_ALTERED_TESTS" != 1 ]; then
-        _subtit "running altered integration tests"
-        export INDEXER=esplora
-        SKIP_INIT=1 "${COV[@]}" "${COV_OPTS[@]}" \
-            --features altered "${CARGO_TEST_OPTS[@]}" 2>&1 \
-            | tee $COV_RUN_FILE.$RUN
-        ((RUN += 1))
-    fi
 
     # cleanup
     unset INDEXER
@@ -181,7 +168,7 @@ fi
 ## unit tests
 if [ "$SKIP_UNIT_TESTS" != 1 ]; then
     if [ "$SUBMODULE" = "all" ]; then
-        SUBMODULE_PATHS=$(git submodule | awk '{print $2}' | grep -v altered_submodules)
+        SUBMODULE_PATHS=$(git submodule | awk '{print $2}')
     else
         SUBMODULE_PATHS=$SUBMODULE
     fi
