@@ -442,7 +442,7 @@ impl<const TRANSFER: bool> ResolveWitness for OfflineResolver<'_, TRANSFER> {
     }
 }
 
-// run once to generate tests/fixtures/consignemnt_<scenario>.json
+// run once to generate tests/fixtures/consignment_<scenario>.{json,rgb}
 // for example:
 // SCENARIO=B cargo test --test validation validate_consignment_generate -- --ignored --show-output
 #[test]
@@ -458,10 +458,15 @@ fn validate_consignment_generate() {
     };
     let (consignment, txes) = get_consignment(scenario);
     println!();
-    let cons_path = format!("tests/fixtures/consignment_{scenario}.json");
+    let cons_json_path = format!("tests/fixtures/consignment_{scenario}.json");
     let json = serde_json::to_string_pretty(&consignment).unwrap();
-    std::fs::write(&cons_path, json).unwrap();
-    println!("written consignment in: {cons_path}");
+    std::fs::write(&cons_json_path, json).unwrap();
+    println!("written consignment in: {cons_json_path}");
+    let cons_strict_path = format!("tests/fixtures/consignment_{scenario}.rgb");
+    consignment
+        .strict_serialize_to_file::<{ usize::MAX }>(&cons_strict_path)
+        .unwrap();
+    println!("written consignment in: {cons_strict_path}");
     let _ = std::fs::remove_dir_all(scenario.txs_folder());
     std::fs::create_dir_all(scenario.txs_folder()).unwrap();
     for tx in txes {
