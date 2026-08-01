@@ -3243,14 +3243,26 @@ fn gen_tapret_values(case: Case) -> (Value, Value) {
 #[test]
 fn validate_consignment_strict_roundtrip() {
     for scenario in Scenario::iter() {
-        let cons_path = format!("tests/fixtures/consignment_{scenario}.rgb");
-        let consignment =
-            Transfer::strict_deserialize_from_file::<{ usize::MAX }>(&cons_path).unwrap();
-        let cons_bytes = consignment
+        let cons_json = get_consignment_from_json(&format!("consignment_{scenario}"));
+        let cons_strict_path = format!("tests/fixtures/consignment_{scenario}.rgb");
+        let cons_strict =
+            Transfer::strict_deserialize_from_file::<{ usize::MAX }>(&cons_strict_path).unwrap();
+        let json_bytes = cons_json
             .to_strict_serialized::<{ usize::MAX }>()
             .unwrap()
             .release();
-        assert_eq!(std::fs::read(cons_path).unwrap(), cons_bytes);
+        let strict_bytes = std::fs::read(&cons_strict_path).unwrap();
+        // JSON and .rgb fixtures must encode the same consignment
+        assert_eq!(cons_json, cons_strict);
+        assert_eq!(json_bytes, strict_bytes);
+        // .rgb must be a canonical strict encoding (round-trip)
+        assert_eq!(
+            cons_strict
+                .to_strict_serialized::<{ usize::MAX }>()
+                .unwrap()
+                .release(),
+            strict_bytes
+        );
     }
 }
 
