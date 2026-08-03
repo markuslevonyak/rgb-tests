@@ -1270,7 +1270,7 @@ fn tapret_opret_same_utxo() {
         None,
     );
 
-    wlt_3.send(
+    let (consignment, _) = wlt_3.send(
         &mut wlt_1,
         TransferType::Blinded,
         contract_id_2,
@@ -1278,6 +1278,81 @@ fn tapret_opret_same_utxo() {
         1000,
         None,
     );
+
+    // hijacking this scenario to test opouts_dag construction during consignment creation
+    // only for convenience, some history is needed to make meaningful checks
+    let last_opid = *consignment
+        .bundles
+        .last()
+        .unwrap()
+        .bundle
+        .known_transitions_opids()
+        .iter()
+        .last()
+        .unwrap();
+    let (alt_consignment, (opouts_dag, opouts_map)) = wlt_3
+        .stock()
+        .transfer_with_dag(contract_id_2, [], [], [last_opid], None)
+        .unwrap();
+    // alt_consignment is created without access to invoice, so it has no terminals
+    let mut consignment = consignment;
+    consignment.terminals = none!();
+    assert_eq!(consignment, alt_consignment);
+    // 6 nodes:
+    // - 1 genesis opout
+    // - 2 opouts first transition
+    // - 1 opout extra transition
+    // - 2 opouts second transition
+    assert_eq!(opouts_map.len(), 6);
+    assert_eq!(opouts_dag.node_count(), 6);
+    // 5 edges:
+    // - 2 first transition (1 in, 2 out)
+    // - 1 extra transition (1 in, 1 out)
+    // - 2 second transition (1 in, 2 out)
+    assert_eq!(opouts_dag.edge_count(), 5);
+
+    // genesis opouts don't have parents
+    let genesis_opid = OpId::from(*contract_id_2);
+    let genesis_asset_opout = Opout::new(genesis_opid, OS_ASSET, 0);
+    let genesis_asset_idx = *opouts_map.get(&genesis_asset_opout).unwrap();
+    let mut parents = opouts_dag.parents(genesis_asset_idx);
+    assert!(parents.walk_next(&opouts_dag).is_none());
+    // genesis has only one assignment
+    assert_eq!(
+        opouts_map
+            .keys()
+            .filter(|opout| opout.op == genesis_opid)
+            .count(),
+        1
+    );
+
+    // terminal opouts have no children
+    for i in 0..2 {
+        let opout = Opout::new(last_opid, OS_ASSET, i);
+        assert!(
+            opouts_dag
+                .children(*opouts_map.get(&opout).unwrap())
+                .walk_next(&opouts_dag)
+                .is_none()
+        );
+    }
+
+    // each opout is spent by a single transition
+    for node_idx in opouts_map.values() {
+        let children_opids = opouts_dag
+            .children(*node_idx)
+            .iter(&opouts_dag)
+            .map(|child1| {
+                opouts_map
+                    .iter()
+                    .find(|(_, idx)| **idx == child1.1)
+                    .unwrap()
+                    .0
+                    .op
+            })
+            .collect::<HashSet<_>>();
+        assert!(children_opids.len() <= 1);
+    }
 }
 
 #[test]

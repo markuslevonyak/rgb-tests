@@ -146,7 +146,7 @@ pub use rgb::{
     invoice::{AddressPayload, Pay2Vout},
     opret::OpretProof,
     pay::{PsbtMeta, TxParams},
-    persistence::{ContractAssignments, MemContract, MemContractState, Stock},
+    persistence::{ContractAssignments, MemContract, MemContractState, MemError, Stock},
     rgbasm,
     stl::{ContractTerms, RejectListUrl, StandardTypes, rgb_contract_stl},
     tapret::{TapretNodePartner, TapretRightBranch},
@@ -155,7 +155,10 @@ pub use rgb::{
         ValidationError, Validator, Validity, Warning, WitnessOrdProvider, WitnessResolverError,
         WitnessStatus,
     },
-    vm::{ContractStateAccess, GlobalsIter, RgbIsa, WitnessOrd, WitnessPos},
+    vm::{
+        ContractStateAccess, ContractStateEvolve, GlobalStateEntry, GlobalsIter, RgbIsa,
+        UnknownGlobalStateType, WitnessOrd, WitnessPos,
+    },
 };
 pub use rgbcore::{
     Txid, Vout,
@@ -177,6 +180,7 @@ pub use rgbstd::{
         ContractBuilder, ContractData, DataAllocation, FilterExclude, FungibleAllocation,
         IssuerWrapper, LinkableSchemaWrapper, TransitionBuilder,
     },
+    daggy::Walker,
     indexers::AnyResolver,
     invoice::{Beneficiary, RgbInvoice, RgbInvoiceBuilder, XChainNet},
     persistence::{ContractStateRead, StashReadProvider, StockError, fs::FsBinStore},
@@ -200,7 +204,10 @@ pub use serial_test::serial;
 pub use signal_hook::consts::{SIGINT, SIGTERM};
 pub use signal_hook::flag::register;
 pub use strict_encoding::{FieldName, StrictSerialize, TypeName, fname, strict_dumb, tn};
-pub use strict_types::{SemId, StrictDeserialize, StrictDumb, StrictVal, TypeSystem};
+pub use strict_types::{
+    SemId, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictType, StrictVal,
+    TypeSystem,
+};
 pub use strum::{EnumIter, IntoEnumIterator};
 pub use time::OffsetDateTime;
 

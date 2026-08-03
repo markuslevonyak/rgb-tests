@@ -3272,6 +3272,185 @@ fn validate_consignment_strict_roundtrip() {
 }
 
 #[test]
+fn validate_consignment_contract_state_evolve_fail() {
+    let scenario = Scenario::B;
+    let resolver = scenario.resolver();
+    let consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
+    let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
+    let validation_config = ValidationConfig {
+        chain_net: ChainNet::BitcoinRegtest,
+        trusted_typesystem,
+        ..Default::default()
+    };
+
+    #[derive(Clone, Eq, PartialEq, Debug, StrictType, StrictDumb, StrictEncode, StrictDecode)]
+    #[strict_type(lib = "dumb")]
+    struct SmallContractState();
+    struct DumbGlobalsIter();
+    impl Iterator for DumbGlobalsIter {
+        type Item = GlobalStateEntry;
+        fn next(&mut self) -> Option<Self::Item> {
+            None
+        }
+    }
+    impl GlobalsIter for DumbGlobalsIter {
+        fn at_depth(&self, _depth: usize) -> Option<Self::Item> {
+            None
+        }
+    }
+    impl ContractStateAccess for SmallContractState {
+        fn data(
+            &self,
+            _outpoint: Outpoint,
+            _ty: AssignmentType,
+        ) -> impl DoubleEndedIterator<Item = impl Borrow<RevealedData>> {
+            Vec::<RevealedData>::new().into_iter()
+        }
+        fn global(
+            &self,
+            _ty: GlobalStateType,
+        ) -> Result<impl GlobalsIter<Item = impl Borrow<GlobalStateEntry>>, UnknownGlobalStateType>
+        {
+            Ok(DumbGlobalsIter())
+        }
+        fn rights(&self, _outpoint: Outpoint, _ty: AssignmentType) -> u32 {
+            0
+        }
+        fn fungible(
+            &self,
+            _outpoint: Outpoint,
+            _ty: AssignmentType,
+        ) -> impl DoubleEndedIterator<Item = FungibleState> {
+            Vec::<FungibleState>::new().into_iter()
+        }
+    }
+    impl ContractStateEvolve for SmallContractState {
+        type Error = MemError;
+        type Context<'ctx> = String;
+        fn init(_context: Self::Context<'_>) -> Self {
+            Self()
+        }
+        fn evolve_state(&mut self, _op: rgb::vm::OrdOpRef) -> Result<(), Self::Error> {
+            use amplify::confinement;
+
+            Err(MemError::Confinement(confinement::Error::OutOfBoundary {
+                index: 3,
+                len: 6,
+            }))
+        }
+    }
+    let res = Validator::<SmallContractState, _, _>::validate(
+        &consignment,
+        &resolver,
+        "".to_string(),
+        &validation_config,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        res,
+        ValidationError::InvalidConsignment(Failure::ContractStateFilled(_))
+    ));
+}
+
+#[test]
+fn validate_consignment_opout_dag() {
+    let scenario = Scenario::C;
+    let consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
+    let trusted_typesystem = AssetSchema::from(consignment.schema_id()).types();
+    let validation_config = ValidationConfig {
+        chain_net: ChainNet::BitcoinRegtest,
+        trusted_typesystem,
+        build_opouts_dag: true,
+        ..Default::default()
+    };
+    let res = consignment
+        .clone()
+        .validate(&scenario.resolver(), &validation_config)
+        .unwrap();
+    let (opouts_dag, opouts_map) = res.validation_status().dag_data_opt.clone().unwrap();
+    dbg!(&opouts_dag);
+    // 8 nodes:
+    // - 2 genesis opout
+    // - 2 opouts after first extra transition
+    // - 2 opouts after transition that isolates inflation right
+    // - 2 opouts after inflation operation
+    // - 1 opout after burn transition (change)
+    assert_eq!(opouts_map.len(), 9);
+    assert_eq!(opouts_dag.node_count(), 9);
+    // 8 edges:
+    // - 4 extra transition (2 in, 2 out)
+    // - 2 inflation right isolation (2 x 1 in, 1 out)
+    // - 2 inflation transition (1 in, 2 out)
+    // - 3 burn transition (3 in, 1 out)
+    assert_eq!(opouts_dag.edge_count(), 11);
+
+    // genesis opouts don't have parents
+    let genesis_opid: OpId = (*consignment.contract_id()).into();
+    let genesis_asset_opout = Opout::new(genesis_opid, OS_ASSET, 0);
+    let genesis_infl_opout = Opout::new(genesis_opid, OS_INFLATION, 0);
+    let genesis_asset_idx = *opouts_map.get(&genesis_asset_opout).unwrap();
+    let mut parents = opouts_dag.parents(genesis_asset_idx);
+    assert!(parents.walk_next(&opouts_dag).is_none());
+    let genesis_infl_idx = *opouts_map.get(&genesis_infl_opout).unwrap();
+    let mut parents = opouts_dag.parents(genesis_infl_idx);
+    assert!(parents.walk_next(&opouts_dag).is_none());
+
+    let mut inflation_opid = None;
+    let mut burn_opid = None;
+    for KnownTransition { opid, transition } in consignment
+        .bundles
+        .iter()
+        .map(|wb| wb.bundle.known_transitions.first().unwrap())
+    {
+        match transition.transition_type {
+            TS_INFLATION => {
+                inflation_opid = Some(*opid);
+            }
+            TS_BURN => {
+                burn_opid = Some(*opid);
+            }
+            _ => {}
+        };
+    }
+    let infl_ass_opout = Opout::new(inflation_opid.unwrap(), OS_ASSET, 0);
+    let infl_chg_opout = Opout::new(inflation_opid.unwrap(), OS_INFLATION, 0);
+    let burn_chg_opout = Opout::new(burn_opid.unwrap(), OS_ASSET, 0);
+    assert_eq!(
+        opouts_map[&burn_chg_opout],
+        opouts_dag
+            .children(*opouts_map.get(&infl_ass_opout).unwrap())
+            .walk_next(&opouts_dag)
+            .unwrap()
+            .1
+    );
+    assert_eq!(
+        opouts_map[&burn_chg_opout],
+        opouts_dag
+            .children(*opouts_map.get(&infl_chg_opout).unwrap())
+            .walk_next(&opouts_dag)
+            .unwrap()
+            .1
+    );
+
+    // each opout is spent by a single transition
+    for node_idx in opouts_map.values() {
+        let children_opids = opouts_dag
+            .children(*node_idx)
+            .iter(&opouts_dag)
+            .map(|child1| {
+                opouts_map
+                    .iter()
+                    .find(|(_, idx)| **idx == child1.1)
+                    .unwrap()
+                    .0
+                    .op
+            })
+            .collect::<HashSet<_>>();
+        assert!(children_opids.len() <= 1);
+    }
+}
+
+#[test]
 fn validate_consignment_unknown_rgbisa_opcode() {
     let scenario = Scenario::B;
 
