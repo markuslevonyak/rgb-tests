@@ -3283,22 +3283,52 @@ fn validate_consignment_unknown_rgbisa_opcode() {
 }
 
 #[test]
-fn unchecked_consignment_into_checked_enforces_bounds() {
-    let scenario = Scenario::B;
-    let base_consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
-    let base_json = serde_json::to_string(&base_consignment).unwrap();
+fn from_str_enforces_confinement() {
+    let scenario = Scenario::A;
+    let cons_path = format!("tests/fixtures/consignment_{scenario}.json");
+    let file = std::fs::File::open(cons_path).unwrap();
+    let base_consignment: Value = serde_json::from_reader(file).unwrap();
 
-    // Set the first bundle's MPC proof path to 32 zero-hashes: within Confined's bound, over u5's.
-    let mut consignment: serde_json::Value = serde_json::from_str(&base_json).unwrap();
-    let overlong_path = serde_json::Value::Array(
-        (0..32)
-            .map(|_| serde_json::Value::String(format!("{:064x}", 0)))
-            .collect(),
+    serde_json::from_str::<UncheckedTransfer>(&serde_json::to_string(&base_consignment).unwrap())
+        .unwrap()
+        .into_checked()
+        .unwrap();
+
+    // SecretSeals wraps a NonEmptyOrdSet, so an empty terminal breaks its lower bound
+    let mut consignment = base_consignment.clone();
+    let terminals = consignment
+        .get_mut("terminals")
+        .unwrap()
+        .as_object_mut()
+        .unwrap();
+    let bundle_id = terminals.keys().next().unwrap().clone();
+    terminals.insert(bundle_id, Value::Array(vec![]));
+    let err =
+        serde_json::from_str::<UncheckedTransfer>(&serde_json::to_string(&consignment).unwrap())
+            .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("collection size 0 less than lower boundary"),
+        "expected a confinement bound error, got: {err}"
     );
+}
+
+#[test]
+fn validate_consignment_mpc_proof_depth_overflow() {
+    let scenario = Scenario::B;
+    let cons_path = format!("tests/fixtures/consignment_{scenario}.json");
+    let file = std::fs::File::open(cons_path).unwrap();
+    let mut consignment: Value = serde_json::from_reader(file).unwrap();
+
+    // MerkleProof::path is a Confined<_, 0, 31>, so a 32-hash path overflows the confinement bound.
+    let hash = format!("{:064x}", 0);
+    let overlong_path = Value::Array((0..32).map(|_| Value::String(hash.clone())).collect());
     *consignment
         .get_mut("bundles")
         .unwrap()
-        .get_mut(0)
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
         .unwrap()
         .get_mut("anchor")
         .unwrap()
@@ -3308,45 +3338,41 @@ fn unchecked_consignment_into_checked_enforces_bounds() {
         .unwrap() = overlong_path;
     let malicious_json = serde_json::to_string(&consignment).unwrap();
 
-    // Transfer cannot be deserialized directly (no Deserialize impl); the
-    // only serde entry point is UncheckedTransfer
-    let unchecked = serde_json::from_str::<UncheckedTransfer>(&malicious_json).unwrap();
+    let err = serde_json::from_str::<UncheckedTransfer>(&malicious_json).unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("operation results in collection size 32 exceeding 31"),
+        "expected a confinement bound error, got: {err}"
+    );
+}
 
-    // constraint violation is detected by into_checked, the only way to get a Consignment from an
-    // UncheckedTransfer
+#[test]
+fn into_checked_enforces_custom_strict_bounds() {
+    let scenario = Scenario::A;
+    let cons_path = format!("tests/fixtures/consignment_{scenario}.json");
+    let file = std::fs::File::open(cons_path).unwrap();
+    let base_consignment: Value = serde_json::from_reader(file).unwrap();
+
+    serde_json::from_str::<UncheckedTransfer>(&serde_json::to_string(&base_consignment).unwrap())
+        .unwrap()
+        .into_checked()
+        .unwrap();
+
+    // Ffv is validated only by its hand-written StrictDecode, which rejects any non-zero
+    // fast-forward version; serde parses it as a plain u16, so into_checked is what catches it
+    let mut consignment = base_consignment.clone();
+    *consignment
+        .get_mut("genesis")
+        .unwrap()
+        .get_mut("ffv")
+        .unwrap() = Value::from(1u16);
+    let unchecked =
+        serde_json::from_str::<UncheckedTransfer>(&serde_json::to_string(&consignment).unwrap())
+            .unwrap();
     assert!(matches!(
         unchecked.into_checked(),
         Err(ConsignmentConstraintError::Deserialize(_))
     ));
-}
-
-#[test]
-fn validate_consignment_mpc_proof_depth_overflow() {
-    let scenario = Scenario::B;
-    let base_consignment = get_consignment_from_json(&format!("consignment_{scenario}"));
-    let mut consignment = base_consignment.clone();
-
-    let hash = "0000000000000000000000000000000000000000000000000000000000000000";
-    // serde deserialization does not fail
-    let malicious_proof: mpc::MerkleProof = serde_json::from_value(json!({
-        "pos": 0,
-        "cofactor": 0,
-        "path": (0..32).map(|_| hash).collect::<Vec<_>>()
-    }))
-    .unwrap();
-
-    let mut bundles = consignment.bundles.release();
-    bundles.last_mut().unwrap().anchor.mpc_proof = malicious_proof;
-    consignment.bundles = LargeVec::from_checked(bundles);
-
-    let cons_json = serde_json::to_string_pretty(&consignment).unwrap();
-    serde_json::from_str::<UncheckedTransfer>(&cons_json).unwrap(); // again, this does not fail
-
-    let cons_bytes = consignment
-        .to_strict_serialized::<{ usize::MAX }>()
-        .unwrap();
-    let res = Transfer::from_strict_serialized::<{ usize::MAX }>(cons_bytes);
-    assert!(res.is_err());
 }
 
 #[test]
